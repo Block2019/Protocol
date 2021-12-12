@@ -3,6 +3,7 @@ package blockchain
 import (
 	"encoding/hex"
 	"fmt"
+	"log"
 	"os"
 	"runtime"
 
@@ -10,12 +11,12 @@ import (
 )
 
 const dbFile = "./tmp/blocks/MANIFEST"
-const dbPath  = "./tmp/blocks"
-const genesisCoinbaseData = "Amon has created  a blockchain"
+const dbPath = "./tmp/blocks"
+const genesisCoinbaseData = "Amon has created a blockchain"
 
 //BlockChain structure
 type BlockChain struct {
-	LastHash []byte //Last Hash of the BlockChain
+	LastHash []byte     //Last Hash of the BlockChain
 	Database *badger.DB //Database
 
 	//Old Implementation before using DB
@@ -25,7 +26,7 @@ type BlockChain struct {
 
 type BlockChainIterator struct {
 	CurrentHash []byte
-	Database *badger.DB
+	Database    *badger.DB
 }
 
 //BLockchain iterator
@@ -34,35 +35,38 @@ func (chain *BlockChain) Iterator() *BlockChainIterator {
 	return iter
 }
 
-//Next function to be used in interator 
+//Next function to be used in interator
 func (iter *BlockChainIterator) Next() *Block {
 	var block *Block
 
 	err := iter.Database.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(iter.CurrentHash)
 		Handle(err)
-		encodedBlock, err := item.Value()
-		block = Deserialize(encodedBlock)
+
+		var valCopy []byte
+		valCopy, err = item.ValueCopy(valCopy)
+		Handle(err)
+		block = Deserialize(valCopy)
 		return err
 	})
+
 	Handle(err)
 
 	iter.CurrentHash = block.PrevHash
 
 	return block
+
 }
 
-	//Database check function
-	func dbExists() bool {
-		if _, err := os.Stat(dbFile); os.IsNotExist(err) {
-			return false
-		}
-
-		return true
-
+//Database check function
+func dbExists() bool {
+	if _, err := os.Stat(dbFile); os.IsNotExist(err) {
+		return false
 	}
 
+	return true
 
+}
 
 //Initializing the BlockChain
 func InitBlockChain(address string) *BlockChain {
@@ -73,12 +77,22 @@ func InitBlockChain(address string) *BlockChain {
 		runtime.Goexit()
 	}
 
+	// opts := badger.DefaultOptions
+	// opts.Dir = dbPath
+	// opts.ValueDir = dbPath
 
-	opts := badger.DefaultOptions
-	opts.Dir = dbPath
-	opts.ValueDir = dbPath
+	// db, err := badger.Open(opts)
 
-	db, err := badger.Open(opts)
+	// Open the Badger database located in the /tmp/badger directory.
+
+	// It will be created if it doesn't exist.
+	db, err := badger.Open(badger.DefaultOptions(dbPath))
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	//defer db.Close()
+
 	Handle(err)
 
 	err = db.Update(func(txn *badger.Txn) error {
@@ -99,8 +113,6 @@ func InitBlockChain(address string) *BlockChain {
 	blockchain := BlockChain{lastHash, db}
 	return &blockchain //
 
-
-
 	//return &BlockChain{[]*Block{Genesis()}} //Creating a new BlockChain with Genesis Block
 }
 
@@ -113,18 +125,25 @@ func ContinueBlockChain(address string) *BlockChain {
 
 	var lastHash []byte
 
-	opts := badger.DefaultOptions
-	opts.Dir = dbPath
-	opts.ValueDir = dbPath
-	
-	db, err := badger.Open(opts)
+	// Open the Badger database located in the /tmp/badger directory.
+
+	// It will be created if it doesn't exist.
+	db, err := badger.Open(badger.DefaultOptions(dbPath))
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	//defer db.Close()
 
 	Handle(err)
 
 	err = db.Update(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte("lh"))
 		Handle(err)
-		lastHash, err = item.Value()
+		//lastHash, err = item.Value()
+		lastHash, err = item.ValueCopy(lastHash)
+		Handle(err)
+
 		return err
 	})
 
@@ -140,7 +159,7 @@ func (chain *BlockChain) FindUnspentTransactions(address string) []Transaction {
 	var unspentTXs []Transaction
 
 	spentTXOs := make(map[string][]int)
-	
+
 	iter := chain.Iterator()
 
 	for {
@@ -204,21 +223,21 @@ func (chain *BlockChain) FindSpendableOutputs(address string, amount int) (int, 
 	unspentTXs := chain.FindUnspentTransactions(address)
 	accumulated := 0
 
-	Work:
-		for _, tx := range unspentTXs {
-			txID := hex.EncodeToString(tx.ID)
-		
-			for outIdx, out := range tx.Outputs {
-				if out.CanBeUnlocked(address) && accumulated < amount {
-					accumulated += out.Value
-					unspentOutputs[txID] = append(unspentOutputs[txID], outIdx)
+Work:
+	for _, tx := range unspentTXs {
+		txID := hex.EncodeToString(tx.ID)
 
-					if accumulated >= amount {
-						break Work
-					}
+		for outIdx, out := range tx.Outputs {
+			if out.CanBeUnlocked(address) && accumulated < amount {
+				accumulated += out.Value
+				unspentOutputs[txID] = append(unspentOutputs[txID], outIdx)
+
+				if accumulated >= amount {
+					break Work
 				}
 			}
 		}
+	}
 
 	return accumulated, unspentOutputs
 }
@@ -230,35 +249,34 @@ func Handle(err error) {
 	}
 }
 
-
-
 //Creating a New Block with its Data and Previous Hash
-func NewBlock(txs []*Transaction, prevHash []byte ) *Block {
-	block := &Block{[]byte{},prevHash,txs,0}         //Creating a new Block of the data structure
+func NewBlock(txs []*Transaction, prevHash []byte) *Block {
+	block := &Block{[]byte{}, prevHash, txs, 0} //Creating a new Block of the data structure
 	// block.Transaction = txs //Setting the Data
 	// block.PrevHash = prevHash //Setting the Previous Hash
-//	block.SetHash()           //Setting the Hash
+	//	block.SetHash()           //Setting the Hash
 
-//We shall replace the above with the proof of work
-	pow := NewProof(block) //Creating a new Proof of Work
+	//We shall replace the above with the proof of work
+	pow := NewProof(block)   //Creating a new Proof of Work
 	nonce, hash := pow.Run() //Running the Proof of Work
-	block.Hash = hash[:] 	//Setting the Hash
-	block.Nonce = nonce 	//Setting the Nonce
-		
- 	return block
+	block.Hash = hash[:]     //Setting the Hash
+	block.Nonce = nonce      //Setting the Nonce
+
+	return block
 
 }
 
 func (youthchain *BlockChain) AddBlock(transaction []*Transaction) {
-var lastHash []byte
+	var lastHash []byte
 
-err := youthchain.Database.View(func(txn *badger.Txn) error {
-	item, err := txn.Get([]byte("lh"))
+	err := youthchain.Database.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte("lh"))
+		Handle(err)
+		lastHash, err = item.ValueCopy(lastHash)
+		Handle(err)
+		return err
+	})
 	Handle(err)
-	lastHash, err = item.Value()
-	return err
-})
-Handle(err)
 
 	newBlock := NewBlock(transaction, lastHash)
 
@@ -273,6 +291,3 @@ Handle(err)
 	Handle(err)
 
 }
-
-
-

@@ -16,12 +16,12 @@ type CommandLine struct {
 func (cli *CommandLine) printUsage() {
 	fmt.Println("Usage:")
 	//fmt.Println(" add -block BLOCK_DATA - add a block to the chain")
-	//fmt.Println(" print - print all the blocks of the chain")
+	fmt.Println(" print - print all the blocks of the chain")
 	fmt.Println(" getbalance - get the balance of the wallet")
-	//fmt.Println(" createwallet - create a new wallet")
+	fmt.Println(" createwallet - create a new wallet")
 	//fmt.Println(" listaddresses - list all addresses")
 	fmt.Println(" send - send amount of coins from FROM address to TO address")
-	fmt.Println(" createblockchain - create a new blockchain address")
+	fmt.Println(" createblockchain -address ADDRESS creates a blockchain and sends genesis reward to address")
 	fmt.Println(" printchain - print the blockchain")
 
 }
@@ -56,6 +56,7 @@ func (cli *CommandLine) printChain() {
 		fmt.Println()
 
 		if len(block.PrevHash) == 0 {
+			fmt.Println("Genesis block not yet minded")
 			break
 		}
 	}
@@ -124,6 +125,7 @@ func (cli *CommandLine) Run() {
 		blockchain.Handle(err)
 
 	case "createblockchain":
+		//fmt.Println("Hello World")
 		err := createBlockchainCmd.Parse(os.Args[2:])
 		blockchain.Handle(err)
 
