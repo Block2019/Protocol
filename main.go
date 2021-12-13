@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 
 	"github.com/tensor-programming/golang-blockchain/blockchain"
@@ -16,13 +17,13 @@ type CommandLine struct {
 func (cli *CommandLine) printUsage() {
 	fmt.Println("Usage:")
 	//fmt.Println(" add -block BLOCK_DATA - add a block to the chain")
-	fmt.Println(" print - print all the blocks of the chain")
-	fmt.Println(" getbalance - get the balance of the wallet")
-	fmt.Println(" createwallet - create a new wallet")
+	fmt.Println("print - print all the blocks of the chain")
+	fmt.Println("getbalance - get the balance of the wallet")
+	fmt.Println("createwallet - create a new wallet")
 	//fmt.Println(" listaddresses - list all addresses")
-	fmt.Println(" send - send amount of coins from FROM address to TO address")
-	fmt.Println(" createblockchain -address ADDRESS creates a blockchain and sends genesis reward to address")
-	fmt.Println(" printchain - print the blockchain")
+	fmt.Println("send - send amount of coins from FROM address to TO address")
+	fmt.Println("createblockchain -address ADDRESS creates a blockchain and sends genesis reward to address")
+	fmt.Println("printchain - print the blockchain")
 
 }
 
@@ -56,7 +57,7 @@ func (cli *CommandLine) printChain() {
 		fmt.Println()
 
 		if len(block.PrevHash) == 0 {
-			fmt.Println("Genesis block not yet minded")
+			fmt.Println("Only Genesis block Exists")
 			break
 		}
 	}
@@ -111,6 +112,7 @@ func (cli *CommandLine) Run() {
 	//addBlockData := addBlockCmd.String("block", "", "Block data")
 	getBalanceCmd := flag.NewFlagSet("getbalance", flag.ExitOnError)
 	//createWalletCmd := flag.NewFlagSet("createwallet", flag.ExitOnError)
+	createBlockchainAddress := createBlockchainCmd.String("address", "", "The address to send genesis block reward to")
 	sendTo := sendCmd.String("to", "", "Send to address")
 	sendAmount := sendCmd.Int("amount", 0, "Amount to send")
 	sendFrom := sendCmd.String("from", "", "Send from address")
@@ -143,12 +145,11 @@ func (cli *CommandLine) Run() {
 	}
 
 	if createBlockchainCmd.Parsed() {
-		if *sendFrom == "" || *sendTo == "" || *sendAmount <= 0 {
+		if *createBlockchainAddress == "" {
 			createBlockchainCmd.Usage()
-			os.Exit(1)
+			runtime.Goexit()
 		}
-
-		cli.createBlockChain(*sendFrom)
+		cli.createBlockChain(*createBlockchainAddress)
 	}
 
 	if sendCmd.Parsed() {
