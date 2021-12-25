@@ -12,6 +12,7 @@ import (
 
 const walletFile = "./tmp/wallet.data"
 
+
 type Wallets struct {
 	Wallets map[string]*Wallet
 }
